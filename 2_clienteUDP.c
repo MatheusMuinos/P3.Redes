@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
         /* Escribir la línea convertida en el fichero de salida */
         fputs(resposta, fout);
 
-        sleep(10);  // Esperar 1 segundo antes de enviar la siguiente línea
+        // sleep(10);  // Esperar 10 segundo antes de enviar la siguiente línea (Ej.3)
     }
 
     close(sock);
