@@ -14,7 +14,7 @@
 */
 
 static void build_output_name(const char *in, char *out, size_t outsz) {
-    /* Constroi nome de saída baseado em in, inserindo _MAYUS antes da extensão */
+    /* constrói nome de saída baseado em in, inserindo _MAYUS antes da extensão */
     const char *dot = strrchr(in, '.');
     if (!dot) {
         snprintf(out, outsz, "%s_MAYUS", in);
@@ -36,12 +36,8 @@ int main(int argc, char *argv[]) {
     const char *nome_entrada = argv[1];
     const char *ip_servidor = argv[2];
     int puerto = atoi(argv[3]);
-    if (puerto <= 0 || puerto > 65535) {
-        fprintf(stderr, "Puerto inválido\n");
-        return 1;
-    }
 
-    /* Abrir archivos */
+    /* abrir arquivos */
     FILE *fin = fopen(nome_entrada, "r");
     if (!fin) { perror("Erro ao abrir arquivo de entrada"); return 1; }
 
@@ -50,7 +46,7 @@ int main(int argc, char *argv[]) {
     FILE *fout = fopen(nome_saida, "w");
     if (!fout) { perror("Erro ao abrir arquivo de saída"); fclose(fin); return 1; }
 
-    /* Crear socket UDP y bind a puerto ephemeral (0) para recibir respuestas */
+    /* crear socket UDP y bind a puerto ephemeral para recibir respuestas */
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) { perror("socket"); fclose(fin); fclose(fout); return 1; }
 
@@ -72,7 +68,7 @@ int main(int argc, char *argv[]) {
     inet_pton(AF_INET, ip_servidor, &server.sin_addr);
     server.sin_port = htons(puerto);
 
-    /* opcional: timeout de recepción para no bloquear indefinidamente (5s) */
+    /* configurar timeout de recepción */
     struct timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
@@ -82,17 +78,17 @@ int main(int argc, char *argv[]) {
     char resposta[2000];
     socklen_t server_len = sizeof(server);
 
-    /* Enviar línea por línea y recibir la respuesta para escribirla en el archivo de salida */
+    /* enviar línea por línea y recibir la respuesta para escribirla en el archivo de salida */
     while (fgets(linha, sizeof(linha), fin)) {
         size_t tam = strlen(linha);
-        /* Enviar la línea al servidor (incluye newline si existe) */
+        /* Enviar la línea al servidor */
         ssize_t sent = sendto(sock, linha, tam, 0, (struct sockaddr *)&server, sizeof(server));
         if (sent < 0) {
             perror("Erro ao enviar linha");
             break;
         }
 
-        /* Esperar la respuesta del servidor */
+        /* esperar la respuesta del servidor */
         struct sockaddr_in from;
         socklen_t fromlen = sizeof(from);
         ssize_t n = recvfrom(sock, resposta, sizeof(resposta)-1, 0, (struct sockaddr *)&from, &fromlen);
@@ -101,7 +97,7 @@ int main(int argc, char *argv[]) {
             break;
         }
         resposta[n] = '\0';
-        /* Escribir la línea convertida en el fichero de salida */
+        // escribir la linea
         fputs(resposta, fout);
 
         // sleep(10);  // Esperar 10 segundo antes de enviar la siguiente línea (Ej.3)
