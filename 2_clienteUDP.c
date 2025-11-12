@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 
 /* Cliente UDP que lee un archivo línea a línea, envía cada línea al servidor UDP,
    recibe la línea convertida a mayúsculas y la escribe en un archivo de salida.
@@ -36,6 +37,10 @@ int main(int argc, char *argv[]) {
     const char *nome_entrada = argv[1];
     const char *ip_servidor = argv[2];
     int puerto = atoi(argv[3]);
+    if (puerto <= 0 || puerto > 65535) {
+        fprintf(stderr, "Puerto inválido: %s\n", argv[3]);
+        return 1;
+    }
 
     /* abrir arquivos */
     FILE *fin = fopen(nome_entrada, "r");
@@ -65,14 +70,22 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in server;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
-    inet_pton(AF_INET, ip_servidor, &server.sin_addr);
+    if (inet_pton(AF_INET, ip_servidor, &server.sin_addr) != 1) {
+        fprintf(stderr, "IP servidor inválida: %s\n", ip_servidor);
+        close(sock); fclose(fin); fclose(fout);
+        return 1;
+    }
     server.sin_port = htons(puerto);
 
     /* configurar timeout de recepción */
     struct timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv)) < 0) {
+        perror("setsockopt SO_RCVTIMEO");
+        close(sock); fclose(fin); fclose(fout);
+        return 1;
+    }
 
     char linha[1001];
     char resposta[2000];
@@ -87,13 +100,22 @@ int main(int argc, char *argv[]) {
             perror("Erro ao enviar linha");
             break;
         }
+        if ((size_t)sent != tam) {
+            fprintf(stderr, "Aviso: enviados %zd bytes, se esperaba %zu\n", sent, tam);
+            /* decidir: continuar o break; aquí rompemos para evitar desincronización */
+            break;
+        }
 
         /* esperar la respuesta del servidor */
         struct sockaddr_in from;
         socklen_t fromlen = sizeof(from);
         ssize_t n = recvfrom(sock, resposta, sizeof(resposta)-1, 0, (struct sockaddr *)&from, &fromlen);
         if (n < 0) {
-            perror("Erro ao receber resposta (timeout ou otro)");
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                fprintf(stderr, "Timeout esperando respuesta (SO_RCVTIMEO)\n");
+            } else {
+                perror("Erro ao receber resposta (recvfrom)");
+            }
             break;
         }
         resposta[n] = '\0';
